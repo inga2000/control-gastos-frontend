@@ -224,6 +224,8 @@ with tab_mes:
                 if st.button("🗑️ Borrar movimiento"):
                     requests.delete(f"{API_URL}/movimientos/{mov['id']}")
                     st.rerun()
+else:
+    st.info("No hay datos aún")
 
 # ==========================================================
 # TAB 2 — HISTÓRICO
@@ -267,4 +269,3 @@ with tab_hist:
         c1.metric("🟢 Ingresos", f"${ti:,.0f}")
         c2.metric("🔴 Gastos", f"${tg:,.0f}")
         c3.metric("⚖️ Balance", f"${ti - tg:,.0f}")
-``
