@@ -46,7 +46,7 @@ CATEGORIAS = {
 }
 
 # =====================
-# Backend helpers
+# Backend helper
 # =====================
 def cargar_datos():
     r = requests.get(f"{API_URL}/movimientos")
@@ -77,49 +77,34 @@ tab_mes, tab_hist = st.tabs(["📅 Mes actual", "📊 Histórico"])
 with tab_mes:
 
     # -------- Alta --------
-    with st.container():
-        st.header("➕ Agregar movimiento")
+    st.header("➕ Agregar movimiento")
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            fecha = st.date_input(
-                "📅 Fecha",
-                value=date.today(),
-                format="DD/MM/YYYY",
-                key="alta_fecha"
-            )
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        fecha = st.date_input("📅 Fecha", value=date.today(), format="DD/MM/YYYY")
+    with c2:
+        monto = st.number_input("💵 Monto", min_value=0.0, step=100.0)
+    with c3:
+        tipo = st.selectbox("Tipo", ["Gasto", "Ingreso"])
 
-        with c2:
-            monto = st.number_input(
-                "💵 Monto",
-                min_value=0.0,
-                step=100.0,
-                key="alta_monto"
-            )
+    c4, c5 = st.columns(2)
+    with c4:
+        grupo = st.selectbox("Grupo", list(CATEGORIAS.keys()))
+    with c5:
+        subcategoria = st.selectbox("Categoría", CATEGORIAS[grupo])
 
-        with c3:
-            tipo = st.selectbox("Tipo", ["Gasto", "Ingreso"], key="alta_tipo")
+    descripcion = st.text_input("📝 Descripción")
 
-        c4, c5 = st.columns(2)
-        with c4:
-            grupo = st.selectbox("Grupo", list(CATEGORIAS.keys()), key="alta_grupo")
-        with c5:
-            subcategoria = st.selectbox("Categoría", CATEGORIAS[grupo], key="alta_categoria")
-
-        descripcion = st.text_input("📝 Descripción", key="alta_desc")
-
-        if st.button("✅ Guardar movimiento"):
-            categoria_final = f"{grupo} › {subcategoria}"
-            payload = {
-                "fecha": str(fecha),
-                "monto": float(monto),
-                "tipo": tipo,
-                "categoria": categoria_final,
-                "descripcion": descripcion
-            }
-            requests.post(f"{API_URL}/movimientos", json=payload)
-            st.success("Movimiento guardado ✅")
-            st.rerun()
+    if st.button("✅ Guardar movimiento"):
+        payload = {
+            "fecha": str(fecha),
+            "monto": float(monto),
+            "tipo": tipo,
+            "categoria": f"{grupo} › {subcategoria}",
+            "descripcion": descripcion
+        }
+        requests.post(f"{API_URL}/movimientos", json=payload)
+        st.rerun()
 
     # -------- Calendario --------
     if not datos.empty:
@@ -131,21 +116,19 @@ with tab_mes:
         datos_mes = datos[
             (datos["Fecha"].dt.month == mes) &
             (datos["Fecha"].dt.year == anio)
-        ]
+        ].copy()
 
         total_ing = datos_mes[datos_mes["Tipo"] == "Ingreso"]["Monto"].sum()
         total_gas = datos_mes[datos_mes["Tipo"] == "Gasto"]["Monto"].sum()
-        bal = total_ing - total_gas
 
         c1, c2, c3 = st.columns(3)
         c1.metric("🟢 Ingresos", f"${total_ing:,.0f}")
         c2.metric("🔴 Gastos", f"${total_gas:,.0f}")
-        c3.metric("⚖️ Balance", f"${bal:,.0f}")
+        c3.metric("⚖️ Balance", f"${total_ing - total_gas:,.0f}")
 
         resumen = datos_mes.copy()
         resumen["Ingreso"] = resumen.apply(lambda x: x["Monto"] if x["Tipo"] == "Ingreso" else 0, axis=1)
         resumen["Gasto"] = resumen.apply(lambda x: x["Monto"] if x["Tipo"] == "Gasto" else 0, axis=1)
-
         diario = resumen.groupby(resumen["Fecha"].dt.day)[["Ingreso", "Gasto"]].sum()
 
         cal = calendar.monthcalendar(anio, mes)
@@ -167,7 +150,7 @@ with tab_mes:
             filas.append(fila)
 
         st.dataframe(
-            pd.DataFrame(filas, columns=["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]),
+            pd.DataFrame(filas, columns=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]),
             use_container_width=True
         )
 
@@ -189,35 +172,22 @@ with tab_mes:
             )
             mov = detalle.loc[mov_idx]
 
-            st.subheader("✏️ Editar / 🗑️ Borrar")
-
-            ef = st.date_input(
-                "Fecha",
-                mov["Fecha"].date(),
-                format="DD/MM/YYYY",
-                key=f"edit_fecha_{mov['id']}"
-            )
-            em = st.number_input("Monto", value=float(mov["Monto"]), key=f"edit_monto_{mov['id']}")
-            et = st.selectbox(
-                "Tipo",
-                ["Gasto", "Ingreso"],
-                index=0 if mov["Tipo"] == "Gasto" else 1,
-                key=f"edit_tipo_{mov['id']}"
-            )
-            ec = st.text_input("Categoría", mov["Categoría"], key=f"edit_categoria_{mov['id']}")
-            ed = st.text_input("Descripción", mov["Descripción"], key=f"edit_desc_{mov['id']}")
+            ef = st.date_input("Fecha", mov["Fecha"].date(), format="DD/MM/YYYY")
+            em = st.number_input("Monto", value=float(mov["Monto"]))
+            et = st.selectbox("Tipo", ["Gasto","Ingreso"], index=0 if mov["Tipo"]=="Gasto" else 1)
+            ec = st.text_input("Categoría", mov["Categoría"])
+            ed = st.text_input("Descripción", mov["Descripción"])
 
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("💾 Guardar cambios"):
-                    payload = {
+                    requests.put(f"{API_URL}/movimientos/{mov['id']}", json={
                         "fecha": str(ef),
                         "monto": em,
                         "tipo": et,
                         "categoria": ec,
                         "descripcion": ed
-                    }
-                    requests.put(f"{API_URL}/movimientos/{mov['id']}", json=payload)
+                    })
                     st.rerun()
 
             with c2:
@@ -225,45 +195,82 @@ with tab_mes:
                     requests.delete(f"{API_URL}/movimientos/{mov['id']}")
                     st.rerun()
 
+        # -------- Excel (CALENDARIO COMPLETO) --------
+        st.header("📥 Descargar calendario mensual en Excel")
+
+        buffer = BytesIO()
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Calendario"
+
+        fill_ing = PatternFill("solid", fgColor="C6EFCE")
+        fill_gas = PatternFill("solid", fgColor="F8CBAD")
+        fill_head = PatternFill("solid", fgColor="D9D9D9")
+
+        headers = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+        for col,h in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.fill = fill_head
+            cell.font = Font(bold=True)
+            ws.column_dimensions[get_column_letter(col)].width = 22
+
+        ingresos = datos_mes[datos_mes["Tipo"]=="Ingreso"].groupby(datos_mes["Fecha"].dt.day)["Monto"].sum()
+        gastos = datos_mes[datos_mes["Tipo"]=="Gasto"].groupby(datos_mes["Fecha"].dt.day)["Monto"].sum()
+
+        fila_excel = 2
+        for semana in cal:
+            for col, dia in enumerate(semana, start=1):
+                if dia == 0:
+                    continue
+                c = ws.cell(row=fila_excel, column=col)
+                texto = f"{dia}"
+                if dia in ingresos:
+                    texto += f"\n+ {ingresos[dia]:.0f}"
+                    c.fill = fill_ing
+                if dia in gastos:
+                    texto += f"\n- {gastos[dia]:.0f}"
+                    c.fill = fill_gas
+                c.value = texto
+                c.alignment = Alignment(wrap_text=True, vertical="top")
+            fila_excel += 1
+
+        wb.save(buffer)
+
+        st.download_button(
+            "📅 Descargar Excel",
+            buffer.getvalue(),
+            f"calendario_{anio}_{mes:02d}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
 # ==========================================================
 # TAB 2 — HISTÓRICO
 # ==========================================================
 with tab_hist:
-    st.header("📊 Histórico de movimientos")
+    st.header("📊 Histórico")
 
     if datos.empty:
-        st.info("No hay datos históricos todavía")
+        st.info("No hay datos todavía")
     else:
         col1, col2 = st.columns(2)
-
         with col1:
-            anio_hist = st.selectbox(
-                "Año",
-                sorted(datos["Fecha"].dt.year.unique(), reverse=True),key="hist_anio"
-            )
-
+            anio_hist = st.selectbox("Año", sorted(datos["Fecha"].dt.year.unique(), reverse=True), key="hist_anio")
         with col2:
-            meses_disp = sorted(
-                datos[datos["Fecha"].dt.year == anio_hist]["Fecha"].dt.month.unique()
-            )
-            mes_hist = st.selectbox("Mes", ["Todos"] + meses_disp,key="hist_mes")
+            meses_disp = sorted(datos[datos["Fecha"].dt.year == anio_hist]["Fecha"].dt.month.unique())
+            mes_hist = st.selectbox("Mes", ["Todos"] + meses_disp, key="hist_mes")
 
         datos_hist = datos[datos["Fecha"].dt.year == anio_hist]
         if mes_hist != "Todos":
             datos_hist = datos_hist[datos_hist["Fecha"].dt.month == mes_hist]
 
-        datos_hist_vis = datos_hist.copy()
-        datos_hist_vis["Fecha"] = datos_hist_vis["Fecha"].dt.strftime("%d/%m/%Y")
+        datos_vis = datos_hist.copy()
+        datos_vis["Fecha"] = datos_vis["Fecha"].dt.strftime("%d/%m/%Y")
+        st.dataframe(datos_vis.sort_values("Fecha"), use_container_width=True)
 
-        st.dataframe(
-            datos_hist_vis.sort_values("Fecha"),
-            use_container_width=True
-        )
-
-        ti = datos_hist[datos_hist["Tipo"] == "Ingreso"]["Monto"].sum()
-        tg = datos_hist[datos_hist["Tipo"] == "Gasto"]["Monto"].sum()
+        ti = datos_hist[datos_hist["Tipo"]=="Ingreso"]["Monto"].sum()
+        tg = datos_hist[datos_hist["Tipo"]=="Gasto"]["Monto"].sum()
 
         c1, c2, c3 = st.columns(3)
         c1.metric("🟢 Ingresos", f"${ti:,.0f}")
         c2.metric("🔴 Gastos", f"${tg:,.0f}")
-        c3.metric("⚖️ Balance", f"${ti - tg:,.0f}")
+        c3.metric("⚖️ Balance", f"${ti-tg:,.0f}")
