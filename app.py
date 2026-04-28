@@ -239,14 +239,14 @@ with tab_hist:
         with col1:
             anio_hist = st.selectbox(
                 "Año",
-                sorted(datos["Fecha"].dt.year.unique(), reverse=True)
+                sorted(datos["Fecha"].dt.year.unique(), reverse=True),key="hist_anio"
             )
 
         with col2:
             meses_disp = sorted(
                 datos[datos["Fecha"].dt.year == anio_hist]["Fecha"].dt.month.unique()
             )
-            mes_hist = st.selectbox("Mes", ["Todos"] + meses_disp)
+            mes_hist = st.selectbox("Mes", ["Todos"] + meses_disp,key="hist_mes")
 
         datos_hist = datos[datos["Fecha"].dt.year == anio_hist]
         if mes_hist != "Todos":
