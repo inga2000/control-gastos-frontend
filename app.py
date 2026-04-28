@@ -12,7 +12,7 @@ from openpyxl.utils import get_column_letter
 # Configuración
 # =====================
 st.set_page_config(page_title="Control de gastos", layout="wide")
-st.title("💰 Control de gastos")
+st.title("CONTROL DE GASTOS")
 
 API_URL = "https://control-gastos-backend-4s5z.onrender.com"
 
@@ -196,7 +196,7 @@ with tab_mes:
                     st.rerun()
 
         # -------- Excel (CALENDARIO COMPLETO) --------
-        st.header("📥 Descargar calendario mensual en Excel")
+        st.header("DESCARGAR CALENDARIO MENSUAL EN EXCEL")
 
         buffer = BytesIO()
         wb = Workbook()
