@@ -174,7 +174,7 @@ with tab_mes:
 
             ef = st.date_input("Fecha", mov["Fecha"].date(), format="DD/MM/YYYY")
             em = st.number_input("Monto", value=float(mov["Monto"]))
-            et = st.selectbox("Tipo", ["Gasto","Ingreso"], index=0 if mov["Tipo"]=="Gasto" else 1)
+            et = st.selectbox("Tipo", ["Gasto","Ingreso"], index=0 if mov["Tipo"]=="Gasto" else 1,key=f"edit_tipo_{mov['id']}")
             ec = st.text_input("Categoría", mov["Categoría"])
             ed = st.text_input("Descripción", mov["Descripción"])
 
