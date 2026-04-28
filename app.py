@@ -8,22 +8,17 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Font
 from openpyxl.utils import get_column_letter
 
-# =================================
-# Configuración general
-# =================================
-st.set_page_config(
-    page_title="Control de gastos",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
+# =====================
+# Configuración
+# =====================
+st.set_page_config(page_title="Control de gastos", layout="wide")
 st.title("💰 Control de gastos")
 
-API_URL = "https://control-gastos-backend-4s5z.onrender.com/"
+API_URL = "https://control-gastos-backend-4s5z.onrender.com"
 
-# =================================
-# Categorías (UX core)
-# =================================
+# =====================
+# Categorías UX
+# =====================
 CATEGORIAS = {
     "🚗 Transporte": [
         "Combustible", "Transporte público", "Estacionamiento",
@@ -50,9 +45,9 @@ CATEGORIAS = {
     ]
 }
 
-# =================================
-# Backend helpers
-# =================================
+# =====================
+# Traer datos del backend
+# =====================
 def cargar_datos():
     r = requests.get(f"{API_URL}/movimientos")
     if r.status_code == 200:
@@ -67,64 +62,44 @@ def cargar_datos():
             }, inplace=True)
             df["Fecha"] = pd.to_datetime(df["Fecha"])
         return df
-    st.error("No se pudieron cargar los datos")
-    return pd.DataFrame()
+    return pd.DataFrame(columns=["Fecha", "Monto", "Tipo", "Categoría", "Descripción"])
 
-# =================================
-# ➕ Alta de movimiento
-# =================================
+datos = cargar_datos()
+
+# =====================
+# Formulario alta (MEJORADO)
+# =====================
 with st.container():
-    st.subheader("➕ Agregar movimiento")
+    st.header("➕ Agregar movimiento")
 
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
+    c1, c2, c3 = st.columns(3)
+    with c1:
         fecha = st.date_input(
             "📅 Fecha",
             value=date.today(),
             format="DD/MM/YYYY",
             key="alta_fecha"
         )
-
-    with col2:
+    with c2:
         monto = st.number_input(
             "💵 Monto",
             min_value=0.0,
             step=100.0,
             key="alta_monto"
         )
+    with c3:
+        tipo = st.selectbox("Tipo", ["Gasto", "Ingreso"], key="alta_tipo")
 
-    with col3:
-        tipo = st.selectbox(
-            "Tipo",
-            ["Gasto", "Ingreso"],
-            key="alta_tipo"
-        )
+    c4, c5 = st.columns(2)
+    with c4:
+        grupo = st.selectbox("Grupo", list(CATEGORIAS.keys()), key="alta_grupo")
+    with c5:
+        subcategoria = st.selectbox("Categoría", CATEGORIAS[grupo], key="alta_categoria")
 
-    col4, col5 = st.columns(2)
-
-    with col4:
-        grupo = st.selectbox(
-            "Grupo",
-            list(CATEGORIAS.keys()),
-            key="alta_grupo"
-        )
-
-    with col5:
-        subcategoria = st.selectbox(
-            "Categoría",
-            CATEGORIAS[grupo],
-            key="alta_categoria"
-        )
-
-    descripcion = st.text_input(
-        "📝 Descripción (opcional)",
-        key="alta_desc"
-    )
+    descripcion = st.text_input("📝 Descripción", key="alta_desc")
 
     if st.button("✅ Guardar movimiento"):
         categoria_final = f"{grupo} › {subcategoria}"
-
         payload = {
             "fecha": str(fecha),
             "monto": float(monto),
@@ -132,36 +107,20 @@ with st.container():
             "categoria": categoria_final,
             "descripcion": descripcion
         }
-
         r = requests.post(f"{API_URL}/movimientos", json=payload)
         if r.status_code == 200:
             st.success("Movimiento guardado ✅")
             st.rerun()
-        else:
-            st.error("Error al guardar el movimiento")
 
-# =================================
-# 📅 Calendario y resumen
-# =================================
-datos = cargar_datos()
-
-st.divider()
-st.subheader("📅 Resumen mensual")
+# =====================
+# Calendario mensual
+# =====================
+st.header("📅 Calendario mensual")
 
 if not datos.empty:
 
-    col1, col2 = st.columns(2)
-    with col1:
-        mes = st.selectbox(
-            "Mes",
-            range(1, 13),
-            index=date.today().month - 1
-        )
-    with col2:
-        anio = st.selectbox(
-            "Año",
-            sorted(datos["Fecha"].dt.year.unique(), reverse=True)
-        )
+    mes = st.selectbox("Mes", range(1, 13), index=date.today().month - 1)
+    anio = st.selectbox("Año", sorted(datos["Fecha"].dt.year.unique(), reverse=True))
 
     datos_mes = datos[
         (datos["Fecha"].dt.month == mes) &
@@ -177,24 +136,12 @@ if not datos.empty:
     c2.metric("🔴 Gastos", f"${total_gastos:,.0f}")
     c3.metric("⚖️ Balance", f"${balance:,.0f}")
 
-    # =================================
-    # Resumen diario
-    # =================================
     resumen = datos_mes.copy()
-    resumen["Ingreso"] = resumen.apply(
-        lambda x: x["Monto"] if x["Tipo"] == "Ingreso" else 0, axis=1
-    )
-    resumen["Gasto"] = resumen.apply(
-        lambda x: x["Monto"] if x["Tipo"] == "Gasto" else 0, axis=1
-    )
+    resumen["Ingreso"] = resumen.apply(lambda x: x["Monto"] if x["Tipo"] == "Ingreso" else 0, axis=1)
+    resumen["Gasto"] = resumen.apply(lambda x: x["Monto"] if x["Tipo"] == "Gasto" else 0, axis=1)
 
-    diario = resumen.groupby(
-        resumen["Fecha"].dt.day
-    )[["Ingreso", "Gasto"]].sum()
+    diario = resumen.groupby(resumen["Fecha"].dt.day)[["Ingreso", "Gasto"]].sum()
 
-    # =================================
-    # Calendario visual
-    # =================================
     cal = calendar.monthcalendar(anio, mes)
     filas = []
 
@@ -213,30 +160,126 @@ if not datos.empty:
                 fila.append(str(dia))
         filas.append(fila)
 
-    cal_df = pd.DataFrame(
-        filas,
-        columns=["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+    calendario_df = pd.DataFrame(
+        filas, columns=["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     )
+    st.dataframe(calendario_df, use_container_width=True)
 
-    st.dataframe(cal_df, use_container_width=True)
-
-    # =================================
-    # 📋 Detalle por día (friendly)
-    # =================================
-    st.subheader("📋 Detalle por día")
+    # =====================
+    # Detalle / Editar / Borrar
+    # =====================
+    st.header("📋 Detalle por día")
 
     if not diario.empty:
-        dia = st.selectbox("Seleccioná un día", sorted(diario.index))
+        dia_sel = st.selectbox("Día", sorted(diario.index.tolist()))
 
-        detalle = datos_mes[datos_mes["Fecha"].dt.day == dia].copy()
-        detalle["Fecha"] = detalle["Fecha"].dt.strftime("%d/%m/%Y")
+        detalle_dia = datos_mes[datos_mes["Fecha"].dt.day == dia_sel]
+        detalle_dia_vis = detalle_dia.copy()
+        detalle_dia_vis["Fecha"] = detalle_dia_vis["Fecha"].dt.strftime("%d/%m/%Y")
 
-        st.dataframe(detalle, use_container_width=True)
+        st.dataframe(detalle_dia_vis, use_container_width=True)
 
-        st.caption(
-            f"Este día gastaste en promedio "
-            f"${detalle[detalle['Tipo']=='Gasto']['Monto'].sum():,.0f}"
+        mov_ids = detalle_dia.index.tolist()
+        mov_idx = st.selectbox(
+            "Movimiento",
+            mov_ids,
+            format_func=lambda i: f"{detalle_dia.loc[i,'Tipo']} ${detalle_dia.loc[i,'Monto']}"
         )
 
+        mov = detalle_dia.loc[mov_idx]
+
+        st.subheader("✏️ Editar / 🗑️ Borrar")
+
+        ef = st.date_input(
+            "Fecha",
+            mov["Fecha"].date(),
+            format="DD/MM/YYYY",
+            key=f"edit_fecha_{mov['id']}"
+        )
+        em = st.number_input("Monto", value=float(mov["Monto"]), key=f"edit_monto_{mov['id']}")
+        et = st.selectbox(
+            "Tipo", ["Gasto", "Ingreso"],
+            index=0 if mov["Tipo"]=="Gasto" else 1,
+            key=f"edit_tipo_{mov['id']}"
+        )
+        ec = st.text_input(
+            "Categoría",
+            mov["Categoría"],
+            key=f"edit_categoria_{mov['id']}"
+        )
+        ed = st.text_input(
+            "Descripción",
+            mov["Descripción"],
+            key=f"edit_desc_{mov['id']}"
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("💾 Guardar cambios"):
+                payload = {
+                    "fecha": str(ef),
+                    "monto": em,
+                    "tipo": et,
+                    "categoria": ec,
+                    "descripcion": ed
+                }
+                requests.put(f"{API_URL}/movimientos/{mov['id']}", json=payload)
+                st.rerun()
+
+        with c2:
+            if st.button("🗑️ Borrar movimiento"):
+                requests.delete(f"{API_URL}/movimientos/{mov['id']}")
+                st.rerun()
+
+    # =====================
+    # Excel calendario (IGUAL QUE ANTES)
+    # =====================
+    st.header("📥 Descargar Excel")
+
+    buffer = BytesIO()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Calendario"
+
+    colors = {
+        "ingreso": PatternFill("solid", fgColor="C6EFCE"),
+        "fijo": PatternFill("solid", fgColor="BDD7EE"),
+        "variable": PatternFill("solid", fgColor="F8CBAD"),
+        "head": PatternFill("solid", fgColor="D9D9D9")
+    }
+
+    headers = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+    for i,h in enumerate(headers,1):
+        c = ws.cell(row=1,column=i,value=h)
+        c.fill = colors["head"]
+        c.font = Font(bold=True)
+        ws.column_dimensions[get_column_letter(i)].width = 20
+
+    gastos = datos_mes[datos_mes["Tipo"]=="Gasto"].groupby(datos_mes["Fecha"].dt.day)["Monto"].sum()
+    ingresos = datos_mes[datos_mes["Tipo"]=="Ingreso"].groupby(datos_mes["Fecha"].dt.day)["Monto"].sum()
+
+    fila = 2
+    for semana in cal:
+        for col,d in enumerate(semana,1):
+            if d==0: continue
+            c = ws.cell(row=fila,column=col,value=str(d))
+            if d in ingresos:
+                c.value += f"\n+ {ingresos[d]:.0f}"
+                c.fill = colors["ingreso"]
+            elif d in gastos:
+                c.value += f"\n- {gastos[d]:.0f}"
+                c.fill = colors["variable"]
+            c.alignment = Alignment(wrap_text=True, vertical="top")
+        fila += 1
+
+    wb.save(buffer)
+
+    st.download_button(
+        "📅 Descargar calendario mensual en Excel",
+        buffer.getvalue(),
+        f"calendario_{anio}_{mes:02d}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
 else:
-    st.info("Todavía no hay datos para mostrar")
+    st.info("No hay datos aún")
