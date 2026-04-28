@@ -224,8 +224,6 @@ with tab_mes:
                 if st.button("🗑️ Borrar movimiento"):
                     requests.delete(f"{API_URL}/movimientos/{mov['id']}")
                     st.rerun()
-else:
-    st.info("No hay datos aún")
 
 # ==========================================================
 # TAB 2 — HISTÓRICO
